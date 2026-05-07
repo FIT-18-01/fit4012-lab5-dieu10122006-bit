@@ -1,0 +1,25 @@
+name: FIT4012 AES Submission CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate-submission:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up compiler
+        run: g++ --version
+
+      - name: Build AES programs
+        run: make all
+
+      - name: Run submission structure checks
+        run: bash .github/scripts/check_submission.sh
+
+      - name: Run AES tests
+        run: make test
