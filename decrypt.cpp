@@ -6,6 +6,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <vector>
 #include "structures.h"
 
 using namespace std;
@@ -144,33 +145,35 @@ int main() {
 	cout << " 128-bit AES Decryption Tool " << endl;
 	cout << "=============================" << endl;
 
-	// Read in the message from message.aes
-	string msgstr;
-	ifstream infile;
-	infile.open("message.aes", ios::in | ios::binary);
+	// Read the encrypted message from message.aes
+	vector<unsigned char> encryptedMessage;
+	ifstream infile("message.aes", ios::in | ios::binary);
 
-	if (infile.is_open())
-	{
-		getline(infile, msgstr); // The first line of file is the message
-		cout << "Read in encrypted message from message.aes" << endl;
-		infile.close();
+	if (!infile.is_open()) {
+		cout << "Unable to open file message.aes" << endl;
+		return 1;
 	}
 
-	else cout << "Unable to open file";
+	infile.seekg(0, ios::end);
+	streamsize messageLen = infile.tellg();
+	infile.seekg(0, ios::beg);
 
-	char * msg = new char[msgstr.size()+1];
-
-	strcpy(msg, msgstr.c_str());
-
-	int n = strlen((const char*)msg);
-
-	unsigned char * encryptedMessage = new unsigned char[n];
-	for (int i = 0; i < n; i++) {
-		encryptedMessage[i] = (unsigned char)msg[i];
+	if (messageLen <= 0) {
+		cout << "message.aes is empty or invalid" << endl;
+		return 1;
 	}
 
-	// Free memory
-	delete[] msg;
+	if (messageLen % 16 != 0) {
+		cout << "Invalid ciphertext length: must be multiple of 16 bytes" << endl;
+		return 1;
+	}
+
+	encryptedMessage.resize(static_cast<size_t>(messageLen));
+	if (!infile.read(reinterpret_cast<char*>(encryptedMessage.data()), messageLen)) {
+		cout << "Failed to read ciphertext from message.aes" << endl;
+		return 1;
+	}
+	cout << "Read in encrypted message from message.aes" << endl;
 
 	// Read in the key
 	string keystr;
@@ -184,41 +187,72 @@ int main() {
 		keyfile.close();
 	}
 
-	else cout << "Unable to open file";
+	else {
+		cout << "Unable to open keyfile" << endl;
+		return 1;
+	}
 
 	istringstream hex_chars_stream(keystr);
 	unsigned char key[16];
 	int i = 0;
 	unsigned int c;
-	while (hex_chars_stream >> hex >> c)
+	while (i < 16 && hex_chars_stream >> hex >> c)
 	{
-		key[i] = c;
-		i++;
+		key[i++] = static_cast<unsigned char>(c);
+	}
+
+	if (i != 16) {
+		cout << "Invalid keyfile format: expected 16 hex bytes" << endl;
+		return 1;
 	}
 
 	unsigned char expandedKey[176];
 
 	KeyExpansion(key, expandedKey);
 	
-	int messageLen = strlen((const char *)encryptedMessage);
+	int ciphertextLen = static_cast<int>(encryptedMessage.size());
 
-	unsigned char * decryptedMessage = new unsigned char[messageLen];
+	unsigned char * decryptedMessage = new unsigned char[ciphertextLen];
 
-	for (int i = 0; i < messageLen; i += 16) {
-		AESDecrypt(encryptedMessage + i, expandedKey, decryptedMessage + i);
+	for (int i = 0; i < ciphertextLen; i += 16) {
+		AESDecrypt(encryptedMessage.data() + i, expandedKey, decryptedMessage + i);
 	}
 
+	if (ciphertextLen == 0) {
+		cout << "No ciphertext to decrypt" << endl;
+		delete[] decryptedMessage;
+		return 1;
+	}
+
+	unsigned char padValue = decryptedMessage[ciphertextLen - 1];
+	if (padValue < 1 || padValue > 16) {
+		cout << "Invalid PKCS#7 padding detected" << endl;
+		delete[] decryptedMessage;
+		return 1;
+	}
+
+	for (int j = 0; j < padValue; j++) {
+		if (decryptedMessage[ciphertextLen - 1 - j] != padValue) {
+			cout << "Invalid PKCS#7 padding detected" << endl;
+			delete[] decryptedMessage;
+			return 1;
+		}
+	}
+
+	int plainLen = ciphertextLen - padValue;
+
 	cout << "Decrypted message in hex:" << endl;
-	for (int i = 0; i < messageLen; i++) {
+	for (int i = 0; i < plainLen; i++) {
 		cout << hex << (int)decryptedMessage[i];
 		cout << " ";
 	}
 	cout << endl;
 	cout << "Decrypted message: ";
-	for (int i = 0; i < messageLen; i++) {
+	for (int i = 0; i < plainLen; i++) {
 		cout << decryptedMessage[i];
 	}
 	cout << endl;
 
+	delete[] decryptedMessage;
 	return 0;
 }

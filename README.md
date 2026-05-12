@@ -84,14 +84,14 @@ Cả hai chương trình đều đọc khóa AES-128 từ file `keyfile`. File `
 ## 4. Output / Đầu ra
 
 - `encrypt` in ciphertext theo dạng hex ra màn hình.
-- `encrypt` ghi ciphertext ra file `message.aes`.
+- `encrypt` ghi ciphertext nhị phân ra file `message.aes`.
 - `decrypt` đọc `message.aes`, in plaintext dạng hex và plaintext dạng ký tự.
 
 ## 5. Padding đang dùng
 
-Code hiện tại dùng **zero padding**: nếu plaintext không chia hết cho 16 byte, chương trình thêm byte `0x00` cho đủ block 128-bit.
+Code hiện tại dùng **PKCS#7 padding**: nếu plaintext không chia hết cho 16 byte, chương trình thêm byte `0xNN` với `NN` là số byte padding cần thiết. Nếu plaintext đã chia hết 16 byte, chương trình vẫn thêm trọn vẹn một block 16 byte padding.
 
-Lưu ý: zero padding phù hợp để minh họa nhập môn, nhưng không phải lựa chọn an toàn/đầy đủ cho ứng dụng thực tế vì có thể gây nhập nhằng giữa byte dữ liệu thật `0x00` và byte padding.
+Lưu ý: PKCS#7 phù hợp hơn zero padding vì nó loại trừ sự nhập nhằng giữa byte dữ liệu thật `0x00` và byte padding.
 
 ## 6. Tests bắt buộc
 
@@ -147,7 +147,7 @@ Một số điểm sinh viên có thể cải tiến:
 
 - tách code thành thư viện thay vì để nhiều logic trong `main`
 - đọc/ghi binary an toàn hơn thay vì phụ thuộc vào chuỗi C-style
-- chuyển từ zero padding sang PKCS#7 padding
+- nâng cấp điều khiển padding và xác thực dữ liệu (PKCS#7 + MAC)
 - thêm chế độ nhập key từ bàn phím
 - thêm mode lựa chọn encrypt/decrypt trong một chương trình duy nhất
 - kiểm thử bằng known answer test vector chuẩn AES

@@ -147,23 +147,20 @@ int main() {
 	cin.getline(message, sizeof(message));
 	cout << message << endl;
 
-	// Pad message to 16 bytes
+	// Pad message using PKCS#7
 	int originalLen = strlen((const char *)message);
-
-	int paddedMessageLen = originalLen;
-
-	if ((paddedMessageLen % 16) != 0) {
-		paddedMessageLen = (paddedMessageLen / 16 + 1) * 16;
+	int padValue = 16 - (originalLen % 16);
+	if (padValue == 0) {
+		padValue = 16;
 	}
 
+	int paddedMessageLen = originalLen + padValue;
 	unsigned char * paddedMessage = new unsigned char[paddedMessageLen];
-	for (int i = 0; i < paddedMessageLen; i++) {
-		if (i >= originalLen) {
-			paddedMessage[i] = 0;
-		}
-		else {
-			paddedMessage[i] = message[i];
-		}
+	for (int i = 0; i < originalLen; i++) {
+		paddedMessage[i] = static_cast<unsigned char>(message[i]);
+	}
+	for (int i = originalLen; i < paddedMessageLen; i++) {
+		paddedMessage[i] = static_cast<unsigned char>(padValue);
 	}
 
 	unsigned char * encryptedMessage = new unsigned char[paddedMessageLen];
@@ -178,16 +175,27 @@ int main() {
 		infile.close();
 	}
 
-	else cout << "Unable to open file";
+	else {
+		cout << "Unable to open keyfile" << endl;
+		delete[] paddedMessage;
+		delete[] encryptedMessage;
+		return 1;
+	}
 
 	istringstream hex_chars_stream(str);
 	unsigned char key[16];
 	int i = 0;
 	unsigned int c;
-	while (hex_chars_stream >> hex >> c)
+	while (i < 16 && hex_chars_stream >> hex >> c)
 	{
-		key[i] = c;
-		i++;
+		key[i++] = static_cast<unsigned char>(c);
+	}
+
+	if (i != 16) {
+		cout << "Invalid keyfile format: expected 16 hex bytes" << endl;
+		delete[] paddedMessage;
+		delete[] encryptedMessage;
+		return 1;
 	}
 
 	unsigned char expandedKey[176];
@@ -206,17 +214,22 @@ int main() {
 
 	cout << endl;
 
-	// Write the encrypted string out to file "message.aes"
+	// Write the encrypted bytes out to file "message.aes"
 	ofstream outfile;
 	outfile.open("message.aes", ios::out | ios::binary);
 	if (outfile.is_open())
 	{
-		outfile << encryptedMessage;
+		outfile.write(reinterpret_cast<const char*>(encryptedMessage), paddedMessageLen);
 		outfile.close();
 		cout << "Wrote encrypted message to file message.aes" << endl;
 	}
 
-	else cout << "Unable to open file";
+	else {
+		cout << "Unable to open file" << endl;
+		delete[] paddedMessage;
+		delete[] encryptedMessage;
+		return 1;
+	}
 
 	// Free memory
 	delete[] paddedMessage;
